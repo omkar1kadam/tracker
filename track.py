@@ -68,11 +68,13 @@ def map_page():
             // Initialize map with dummy coordinates
             var map = L.map('map').setView([0, 0], 15);
 
-            // FIX for Render HTTPS tile loading
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '© OpenStreetMap contributors'
+            // FIXED: Working HTTPS tiles for Render
+            L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; OpenStreetMap France',
+                subdomains: ['a','b','c'],
+                maxZoom: 20
             }).addTo(map);
+
 
             var marker = L.marker([0, 0]).addTo(map);
             var routeLine = L.polyline([], {color: 'red'}).addTo(map);
