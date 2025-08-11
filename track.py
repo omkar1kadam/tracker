@@ -2,14 +2,13 @@ from flask import Flask, request, jsonify, render_template_string
 
 app = Flask(__name__)
 
-# Store the latest GPS coordinates and route history
+# Store latest GPS coordinates and route history
 latest_coords = {"latitude": 0.0, "longitude": 0.0}
-route_history = []  # list of [lat, lng] points
+route_history = []
 
 
 @app.route('/gps', methods=['POST'])
 def gps_data():
-    """Receive GPS data from sensor and store it."""
     global latest_coords, route_history
     data = request.get_json()
     print(f"📍 Received GPS Data: {data}")
@@ -17,14 +16,10 @@ def gps_data():
     lat = float(data['latitude'])
     lng = float(data['longitude'])
 
-    # Update latest coordinates
     latest_coords["latitude"] = lat
     latest_coords["longitude"] = lng
-
-    # Add to route history
     route_history.append([lat, lng])
 
-    # Save to file (optional for logs)
     with open("gps_log.txt", "a") as f:
         f.write(f"{lat}, {lng}\n")
 
@@ -33,7 +28,6 @@ def gps_data():
 
 @app.route('/coords')
 def get_coords():
-    """Send latest coordinates and full route history to the frontend."""
     return jsonify({
         "latest": latest_coords,
         "route": route_history
@@ -42,30 +36,53 @@ def get_coords():
 
 @app.route('/map')
 def map_page():
-    """Serve a live map page."""
     html = """
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Live GPS Tracker with Route</title>
+        <title>Live GPS Tracker (Google Maps)</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
         <style>
-            #map { height: 100vh; width: 100%; }
+            #map {
+                height: 100vh;
+                width: 100%;
+            }
         </style>
+        <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script>
     </head>
     <body>
         <div id="map"></div>
-        <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-        <script>
-            var map = L.map('map').setView([0, 0], 15);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19
-            }).addTo(map);
 
-            var marker = L.marker([0, 0]).addTo(map);
-            var routeLine = L.polyline([], {color: 'red'}).addTo(map);
-            var firstUpdate = true;
+        <script>
+            let map;
+            let marker;
+            let routePath;
+            let firstUpdate = true;
+
+            function initMap() {
+                map = new google.maps.Map(document.getElementById('map'), {
+                    center: {lat: 0, lng: 0},
+                    zoom: 15
+                });
+
+                marker = new google.maps.Marker({
+                    position: {lat: 0, lng: 0},
+                    map: map,
+                    title: "Current Location"
+                });
+
+                routePath = new google.maps.Polyline({
+                    path: [],
+                    geodesic: true,
+                    strokeColor: '#FF0000',
+                    strokeOpacity: 1.0,
+                    strokeWeight: 2
+                });
+                routePath.setMap(map);
+
+                updateLocation();
+                setInterval(updateLocation, 2000);
+            }
 
             async function updateLocation() {
                 let res = await fetch('/coords');
@@ -73,24 +90,19 @@ def map_page():
 
                 let lat = data.latest.latitude;
                 let lng = data.latest.longitude;
-                let route = data.route;
+                let route = data.route.map(coord => ({lat: coord[0], lng: coord[1]}));
 
-                // Update marker position
-                marker.setLatLng([lat, lng]);
+                marker.setPosition({lat: lat, lng: lng});
 
-                // Only center the map the first time
                 if (firstUpdate) {
-                    map.setView([lat, lng], 15);
+                    map.setCenter({lat: lat, lng: lng});
                     firstUpdate = false;
                 }
 
-                // Update route polyline
-                routeLine.setLatLngs(route);
+                routePath.setPath(route);
             }
 
-            // Update every 2 seconds
-            setInterval(updateLocation, 2000);
-            updateLocation();
+            window.onload = initMap;
         </script>
     </body>
     </html>
